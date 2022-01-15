@@ -3,30 +3,33 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"time"
 
 	"github.com/arturcampos/protobuffers/pb"
 	"google.golang.org/grpc"
 )
 
-
-func main(){
+func main() {
 	connection, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("Could not connect to gRPC Server: %v", err)
 	}
 
-	defer connection.Close();
+	defer connection.Close()
 
 	client := pb.NewUserServiceClient(connection)
-	AddUser(client)
+	//AddUser(client)
+	//AddUserVerbose(client)
+	AddUsers(client)
 
 }
 
-func AddUser(client pb.UserServiceClient){
+func AddUser(client pb.UserServiceClient) {
 	req := &pb.User{
-		Id: "0",
-		Name: "José",
+		Id:    "0",
+		Name:  "José",
 		Email: "jose@jose.com",
 	}
 
@@ -36,4 +39,73 @@ func AddUser(client pb.UserServiceClient){
 	}
 
 	fmt.Println(res)
+}
+
+func AddUserVerbose(client pb.UserServiceClient) {
+	req := &pb.User{
+		Id:    "0",
+		Name:  "José",
+		Email: "jose@jose.com",
+	}
+
+	resStream, err := client.AddUserVerbose(context.Background(), req)
+	if err != nil {
+		log.Fatalf("Could not make gRPC request: %v", err)
+	}
+
+	for {
+		stream, err := resStream.Recv()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("Could not receive the message: %v", err)
+		}
+
+		fmt.Println("Status", stream.Status, " - ", stream.GetUser())
+	}
+}
+
+func AddUsers(client pb.UserServiceClient){
+	reqs := []*pb.User{
+		&pb.User{
+			Id: "a1",
+			Name: "Artur",
+			Email: "artur@artur.com",
+		},
+		&pb.User{
+			Id: "a2",
+			Name: "Artur 2",
+			Email: "artur@artur.com",
+		},
+		&pb.User{
+			Id: "a3",
+			Name: "Artur 3",
+			Email: "artur@artur.com",
+		},
+		&pb.User{
+			Id: "a4",
+			Name: "Artur 4",
+			Email: "artur@artur.com",
+		},
+	}
+	stream, err := client.AddUsers(context.Background())
+	
+	if err != nil{
+		log.Fatalf("Error Creating request: %v", err)
+	}
+
+	for _, req := range reqs {
+		stream.Send(req)
+		time.Sleep(time.Second * 3)
+	}
+
+	res, err := stream.CloseAndRecv();
+	if err != nil {
+		log.Fatalf("Error receiving response: %v", err)
+	}
+
+	fmt.Println(res)
+
+	
 }
